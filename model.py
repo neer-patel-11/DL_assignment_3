@@ -515,47 +515,32 @@ class Transformer(nn.Module):
         dropout        (float): Dropout probability (default 0.1).
     """
 
-    def __init__(
-        self,
-        src_vocab_size: int = None,
-        tgt_vocab_size: int = None,
-        d_model: int = 256,
-        N: int = 4,
-        num_heads: int = 4,
-        d_ff: int = 1024,
-        dropout: float = 0.1,
-    ) -> None:
+    def __init__(self,
+                src_vocab_size=None,
+                tgt_vocab_size=None,
+                d_model=512,
+                N=6,
+                num_heads=8,
+                d_ff=2048,
+                dropout=0.1,
+            ):
 
         super().__init__()
 
         import spacy
+        import gdown
         from dataset import Multi30kDataset
 
-        # ============================================================
-        # 1. LOAD TOKENIZERS
-        # ============================================================
+        # =========================================================
+        # TOKENIZERS
+        # =========================================================
 
-        # try:
-        #     self.src_tokenizer = spacy.load("de_core_news_sm")
-        # except:
-        #     os.system("python -m spacy download de_core_news_sm")
-        #     self.src_tokenizer = spacy.load("de_core_news_sm")
-
-        # try:
-        #     self.tgt_tokenizer = spacy.load("en_core_web_sm")
-        # except:
-        #     os.system("python -m spacy download en_core_web_sm")
-        #     self.tgt_tokenizer = spacy.load("en_core_web_sm")
-
-        # import spacy
-
-        # Lightweight tokenizers that work everywhere
         self.src_tokenizer = spacy.blank("de")
         self.tgt_tokenizer = spacy.blank("en")
 
-        # ============================================================
-        # 2. LOAD VOCAB
-        # ============================================================
+        # =========================================================
+        # VOCAB
+        # =========================================================
 
         train_dataset = Multi30kDataset(split="train")
 
@@ -565,9 +550,50 @@ class Transformer(nn.Module):
         self.src_vocab_size = len(self.src_vocab)
         self.tgt_vocab_size = len(self.tgt_vocab)
 
-        # ============================================================
-        # 3. MODEL CONFIG
-        # ============================================================
+        # =========================================================
+        # DOWNLOAD CHECKPOINT
+        # =========================================================
+
+        checkpoint_path = "best_checkpoint.pt"
+
+        if not os.path.exists(checkpoint_path):
+
+            file_id = "158xPmvDy0h0NcItK1qZNu9hK8VXLnpdo"
+
+            url = f"https://drive.google.com/uc?id={file_id}"
+
+            gdown.download(
+                url,
+                checkpoint_path,
+                quiet=False
+            )
+
+        # =========================================================
+        # LOAD CHECKPOINT FIRST
+        # =========================================================
+
+        checkpoint = torch.load(
+            checkpoint_path,
+            map_location="cpu"
+        )
+
+        # =========================================================
+        # READ CONFIG FROM CHECKPOINT
+        # =========================================================
+
+        if "model_config" in checkpoint:
+
+            config = checkpoint["model_config"]
+
+            d_model = config["d_model"]
+            N = config["N"]
+            num_heads = config["num_heads"]
+            d_ff = config["d_ff"]
+            dropout = config["dropout"]
+
+        # =========================================================
+        # SAVE CONFIG
+        # =========================================================
 
         self.d_model = d_model
         self.N = N
@@ -575,13 +601,19 @@ class Transformer(nn.Module):
         self.d_ff = d_ff
         self.dropout_rate = dropout
 
-        # ============================================================
-        # 4. BUILD MODEL
-        # ============================================================
+        # =========================================================
+        # BUILD MODEL
+        # =========================================================
 
-        self.src_embed = nn.Embedding(self.src_vocab_size, d_model)
+        self.src_embed = nn.Embedding(
+            self.src_vocab_size,
+            d_model
+        )
 
-        self.tgt_embed = nn.Embedding(self.tgt_vocab_size, d_model)
+        self.tgt_embed = nn.Embedding(
+            self.tgt_vocab_size,
+            d_model
+        )
 
         self.pos_encoding = PositionalEncoding(
             d_model,
@@ -617,40 +649,16 @@ class Transformer(nn.Module):
             self.tgt_vocab_size
         )
 
-        # ============================================================
-        # 5. DOWNLOAD CHECKPOINT USING GDOWN
-
-        # https://drive.google.com/file/d/158xPmvDy0h0NcItK1qZNu9hK8VXLnpdo/view?usp=sharing
-        # ============================================================
-
-        checkpoint_path = "best_checkpoint.pt"
-
-        if not os.path.exists(checkpoint_path):
-
-            file_id = "158xPmvDy0h0NcItK1qZNu9hK8VXLnpdo"
-
-            url = f"https://drive.google.com/uc?id={file_id}"
-
-            gdown.download(
-                url,
-                checkpoint_path,
-                quiet=False
-            )
-
-        # ============================================================
-        # 6. LOAD MODEL WEIGHTS
-        # ============================================================
-
-        checkpoint = torch.load(
-            checkpoint_path,
-            map_location="cpu"
-        )
+        # =========================================================
+        # LOAD WEIGHTS
+        # =========================================================
 
         self.load_state_dict(
             checkpoint["model_state_dict"]
         )
 
-        print("Model weights loaded successfully.")
+        print("Checkpoint loaded successfully.")
+    
     def _load_vocab_and_tokenizers(self):
         """Load vocabulary and spacy tokenizers."""
         try:
