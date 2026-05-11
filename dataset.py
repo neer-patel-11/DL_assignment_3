@@ -42,22 +42,25 @@ class Multi30kDataset:
         self.split = split
         
         # Load spacy tokenizers
-        try:
-            self.src_tokenizer = spacy.load('de_core_news_sm')
-        except OSError:
-            print("Installing German spacy model...")
-            import os
-            os.system('python -m spacy download de_core_news_sm')
-            self.src_tokenizer = spacy.load('de_core_news_sm')
+        # try:
+        #     self.src_tokenizer = spacy.load('de_core_news_sm')
+        # except OSError:
+        #     print("Installing German spacy model...")
+        #     import os
+        #     os.system('python -m spacy download de_core_news_sm')
+        #     self.src_tokenizer = spacy.load('de_core_news_sm')
         
-        try:
-            self.tgt_tokenizer = spacy.load('en_core_web_sm')
-        except OSError:
-            print("Installing English spacy model...")
-            import os
-            os.system('python -m spacy download en_core_web_sm')
-            self.tgt_tokenizer = spacy.load('en_core_web_sm')
-        
+        # try:
+        #     self.tgt_tokenizer = spacy.load('en_core_web_sm')
+        # except OSError:
+        #     print("Installing English spacy model...")
+        #     import os
+        #     os.system('python -m spacy download en_core_web_sm')
+        #     self.tgt_tokenizer = spacy.load('en_core_web_sm')
+
+        # Lightweight tokenizers that work everywhere
+        self.src_tokenizer = spacy.blank("de")
+        self.tgt_tokenizer = spacy.blank("en")
         # Load Multi30k dataset from Hugging Face
         dataset = load_dataset('bentrevett/multi30k')
         
@@ -82,11 +85,11 @@ class Multi30kDataset:
 
     def tokenize_src(self, text: str) -> List[str]:
         """Tokenize German text."""
-        return [token.text for token in self.src_tokenizer(text)]
+        return [token.text for token in self.src_tokenizer.tokenizer(text)]
     
     def tokenize_tgt(self, text: str) -> List[str]:
         """Tokenize English text."""
-        return [token.text for token in self.tgt_tokenizer(text)]
+        return [token.text for token in self.tgt_tokenizer.tokenizer(text)]
 
     def build_vocab(self):
         """

@@ -535,17 +535,23 @@ class Transformer(nn.Module):
         # 1. LOAD TOKENIZERS
         # ============================================================
 
-        try:
-            self.src_tokenizer = spacy.load("de_core_news_sm")
-        except:
-            os.system("python -m spacy download de_core_news_sm")
-            self.src_tokenizer = spacy.load("de_core_news_sm")
+        # try:
+        #     self.src_tokenizer = spacy.load("de_core_news_sm")
+        # except:
+        #     os.system("python -m spacy download de_core_news_sm")
+        #     self.src_tokenizer = spacy.load("de_core_news_sm")
 
-        try:
-            self.tgt_tokenizer = spacy.load("en_core_web_sm")
-        except:
-            os.system("python -m spacy download en_core_web_sm")
-            self.tgt_tokenizer = spacy.load("en_core_web_sm")
+        # try:
+        #     self.tgt_tokenizer = spacy.load("en_core_web_sm")
+        # except:
+        #     os.system("python -m spacy download en_core_web_sm")
+        #     self.tgt_tokenizer = spacy.load("en_core_web_sm")
+
+        # import spacy
+
+        # Lightweight tokenizers that work everywhere
+        self.src_tokenizer = spacy.blank("de")
+        self.tgt_tokenizer = spacy.blank("en")
 
         # ============================================================
         # 2. LOAD VOCAB
@@ -758,7 +764,7 @@ class Transformer(nn.Module):
 
             tokens = [
                 token.text.lower()
-                for token in self.src_tokenizer(german_sentence)
+                for token in self.src_tokenizer.tokenizer(german_sentence)
             ]
 
             # =====================================================
