@@ -550,15 +550,15 @@ class Transformer(nn.Module):
         self.src_vocab_size = len(self.src_vocab)
         self.tgt_vocab_size = len(self.tgt_vocab)
 
-        # =========================================================
-        # DOWNLOAD CHECKPOINT https://drive.google.com/file/d/1jBZa4R-hCA6YcpQ7L7HtFJ7ElHJrUYDM/view?usp=sharing
+        # ========================================================= 
+        # https://drive.google.com/file/d/1jasf7fG4tM3Bspv4hncWtUP-GxGuQzxI/view?usp=sharing
         # =========================================================
 
         checkpoint_path = "best_checkpoint.pt"
 
         if not os.path.exists(checkpoint_path):
 
-            file_id = "1jBZa4R-hCA6YcpQ7L7HtFJ7ElHJrUYDM"
+            file_id = "1jasf7fG4tM3Bspv4hncWtUP-GxGuQzxI"
 
             url = f"https://drive.google.com/uc?id={file_id}"
 
