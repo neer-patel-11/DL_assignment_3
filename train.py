@@ -565,9 +565,18 @@ def run_training_experiment() -> None:
     
     # Load datasets
     print("Loading datasets...")
+
     train_dataset = Multi30kDataset(split='train')
+
     val_dataset = Multi30kDataset(split='validation')
     test_dataset = Multi30kDataset(split='test')
+
+    # SHARE VOCAB
+    val_dataset.src_vocab = train_dataset.src_vocab
+    val_dataset.tgt_vocab = train_dataset.tgt_vocab
+
+    test_dataset.src_vocab = train_dataset.src_vocab
+    test_dataset.tgt_vocab = train_dataset.tgt_vocab
     
     # Process data
     print("Processing training data...")
