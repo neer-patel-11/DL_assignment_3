@@ -115,7 +115,7 @@ class Multi30kDataset:
             tgt_counter.update(tgt_tokens)
         
         # Build vocabularies: special tokens + most common words
-        min_freq = 2  # Minimum frequency for a token to be included
+        min_freq = 1  # Minimum frequency for a token to be included
         
         src_tokens = special_tokens + [
             token for token, count in src_counter.most_common()

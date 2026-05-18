@@ -68,7 +68,7 @@ class LabelSmoothingLoss(nn.Module):
         # Start with uniform distribution over all classes
         with torch.no_grad():
             true_dist = torch.zeros_like(log_probs)
-            true_dist.fill_(self.smoothing / (self.vocab_size - 2))  # Smooth
+            true_dist.fill_(self.smoothing / (self.vocab_size - 1))  # Smooth
             
             # Set true class with confidence
             true_dist.scatter_(1, target.unsqueeze(1), self.confidence)
@@ -77,9 +77,12 @@ class LabelSmoothingLoss(nn.Module):
             true_dist[:, self.pad_idx] = 0
             
             # Renormalize to ensure it sums to 1
-            mask = torch.nonzero(target == self.pad_idx)
-            if mask.numel() > 0:
-                true_dist[mask] = 0
+            # mask = torch.nonzero(target == self.pad_idx)
+            # if mask.numel() > 0:
+            #     true_dist[mask] = 0
+            # Renormalize where target is NOT padding
+            mask = (target != self.pad_idx).unsqueeze(1)
+            true_dist = true_dist * mask
         
         # Compute KL divergence (cross entropy with smoothed labels)
         loss = torch.sum(-true_dist * log_probs, dim=-1)
@@ -541,15 +544,16 @@ def run_training_experiment() -> None:
     """
     # Configuration
     config = {
-        'batch_size': 32,
+        'batch_size': 16,
         'num_epochs': 40,
-        'd_model': 256,
-        'N': 4,
-        'num_heads': 4,
-        'd_ff': 512,
+        'd_model': 512,
+        'N': 6,
+        'num_heads': 8,
+        'd_ff': 2048,
         'dropout': 0.1,
         'warmup_steps': 4000,
         'label_smoothing': 0.1,
+    
     }
     
     # Initialize W&B
