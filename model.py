@@ -758,31 +758,34 @@ class Transformer(nn.Module):
         logits = self.decode(memory, src_mask, tgt, tgt_mask)
         return logits
 
-    def infer(self, german_sentence: str, max_len: int = 100) -> str:
+    def infer(self, german_sentence: str, max_len: int = 50) -> str:
 
         self.eval()
-
         device = next(self.parameters()).device
+
+        # ================================
+        # SPECIAL TOKENS (FIXED)
+        # ================================
+        pad_idx = self.tgt_vocab.stoi["<pad>"]
+        sos_idx = self.tgt_vocab.stoi["<sos>"]
+        eos_idx = self.tgt_vocab.stoi["<eos>"]
 
         with torch.no_grad():
 
-            # =====================================================
+            # ================================
             # TOKENIZE
-            # =====================================================
-
+            # ================================
             tokens = [
                 token.text.lower()
                 for token in self.src_tokenizer.tokenizer(german_sentence)
             ]
 
-            # =====================================================
+            # ================================
             # CONVERT TO IDS
-            # =====================================================
-
+            # ================================
             src_indices = [self.src_vocab.stoi["<sos>"]]
 
             for token in tokens:
-
                 src_indices.append(
                     self.src_vocab.stoi.get(
                         token,
@@ -790,84 +793,54 @@ class Transformer(nn.Module):
                     )
                 )
 
-            src_indices.append(
-                self.src_vocab.stoi["<eos>"]
-            )
+            src_indices.append(self.src_vocab.stoi["<eos>"])
 
-            # =====================================================
-            # TENSOR
-            # =====================================================
-
-            src_tensor = torch.LongTensor(
-                src_indices
-            ).unsqueeze(0).to(device)
-
-            # =====================================================
-            # MASK
-            # =====================================================
+            # ================================
+            # TENSOR + MASK
+            # ================================
+            src_tensor = torch.LongTensor(src_indices).unsqueeze(0).to(device)
 
             src_mask = make_src_mask(
                 src_tensor,
                 pad_idx=self.src_vocab.stoi["<pad>"]
             ).to(device)
 
-            # =====================================================
-            # ENCODE
-            # =====================================================
+            # ================================
+            # ENCODE (ONLY ONCE)
+            # ================================
+            memory = self.encode(src_tensor, src_mask)
 
-            memory = self.encode(
-                src_tensor,
-                src_mask
-            )
-
-            # =====================================================
-            # GREEDY DECODING
-            # =====================================================
-
-            tgt_indices = [
-                self.tgt_vocab.stoi["<sos>"]
-            ]
+            # ================================
+            # GREEDY DECODING (FIXED)
+            # ================================
+            tgt_tensor = torch.LongTensor([[sos_idx]]).to(device)
 
             for _ in range(max_len):
 
-                tgt_tensor = torch.LongTensor(
-                    tgt_indices
-                ).unsqueeze(0).to(device)
+                tgt_mask = make_tgt_mask(tgt_tensor, pad_idx).to(device)
 
-                tgt_mask = make_tgt_mask(
-                    tgt_tensor,
-                    pad_idx=self.tgt_vocab.stoi["<pad>"]
-                ).to(device)
+                output = self.decode(memory, src_mask, tgt_tensor, tgt_mask)
 
-                output = self.decode(
-                    memory,
-                    src_mask,
-                    tgt_tensor,
-                    tgt_mask
-                )
+                next_token = output[:, -1, :].argmax(-1, keepdim=True)
 
-                next_token = output[:, -1, :].argmax(-1).item()
+                tgt_tensor = torch.cat([tgt_tensor, next_token], dim=1)
 
-                tgt_indices.append(next_token)
-
-                if next_token == self.tgt_vocab.stoi["<eos>"]:
+                if next_token.item() == eos_idx:
                     break
 
-            # =====================================================
-            # DETOKENIZE
-            # =====================================================
-
+            # ================================
+            # DETOKENIZE (FIXED)
+            # ================================
             output_tokens = []
 
-            for idx in tgt_indices[1:]:
+            for idx in tgt_tensor.squeeze(0)[1:]:  # skip <sos>
 
-                token = self.tgt_vocab.itos[idx]
+                token = self.tgt_vocab.itos[idx.item()]
 
                 if token == "<eos>":
                     break
 
                 if token not in ["<pad>", "<sos>", "<unk>"]:
-
                     output_tokens.append(token)
 
             return " ".join(output_tokens)
