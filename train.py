@@ -300,56 +300,46 @@ def greedy_decode(
 # ══════════════════════════════════════════════════════════════════════
 #   BLEU EVALUATION  
 # ══════════════════════════════════════════════════════════════════════
-
 def calculate_bleu_score(reference, hypothesis, max_n=4):
-    """
-    Calculate BLEU score for a single sentence pair.
-    """
     from collections import Counter
     import math
-    
-    # Split into tokens
+
     ref_tokens = reference.split()
     hyp_tokens = hypothesis.split()
-    
-    if len(hyp_tokens) == 0:
+
+    if len(hyp_tokens) == 0 or len(ref_tokens) == 0:
         return 0.0
-    
-    # Calculate n-gram precision
-    score = 0
-    weights = [0.25, 0.25, 0.25, 0.25]  # Equal weight for 1-4 grams
-    
+
+    weights = [0.25, 0.25, 0.25, 0.25]
+    log_score = 0.0
+
     for n in range(1, max_n + 1):
         if len(hyp_tokens) < n:
-            continue
-        
+            return 0.0  # can't compute this n-gram, BLEU is 0
+
         ref_ngrams = Counter()
         hyp_ngrams = Counter()
-        
+
         for i in range(len(ref_tokens) - n + 1):
-            ref_ngrams[' '.join(ref_tokens[i:i+n])] += 1
-        
+            ref_ngrams[tuple(ref_tokens[i:i+n])] += 1
+
         for i in range(len(hyp_tokens) - n + 1):
-            hyp_ngrams[' '.join(hyp_tokens[i:i+n])] += 1
-        
-        # Calculate precision for this n-gram
-        matches = 0
-        for ngram, count in hyp_ngrams.items():
-            matches += min(count, ref_ngrams.get(ngram, 0))
-        
+            hyp_ngrams[tuple(hyp_tokens[i:i+n])] += 1
+
+        matches = sum(min(count, ref_ngrams.get(ngram, 0))
+                      for ngram, count in hyp_ngrams.items())
         total = sum(hyp_ngrams.values())
-        
-        if total > 0:
-            precision = matches / total
-            score += weights[n-1] * precision
-    
+
+        if matches == 0:
+            return 0.0  # geometric mean collapses to 0
+
+        log_score += weights[n-1] * math.log(matches / total)
+
     # Brevity penalty
-    if len(hyp_tokens) < len(ref_tokens):
-        brevity_penalty = math.exp(1 - len(ref_tokens) / len(hyp_tokens))
-    else:
-        brevity_penalty = 1.0
-    
-    return score * brevity_penalty * 100
+    bp = min(1.0, math.exp(1 - len(ref_tokens) / len(hyp_tokens)))
+
+    return bp * math.exp(log_score) * 100
+
 
 
 def evaluate_bleu(
