@@ -22,6 +22,8 @@ from typing import Optional, Tuple
 import numpy as np
 from tqdm import tqdm
 import wandb
+from collections import Counter
+import math
 
 from model import Transformer, make_src_mask, make_tgt_mask
 from lr_scheduler import NoamScheduler
@@ -68,7 +70,7 @@ class LabelSmoothingLoss(nn.Module):
         # Start with uniform distribution over all classes
         with torch.no_grad():
             true_dist = torch.zeros_like(log_probs)
-            true_dist.fill_(self.smoothing / (self.vocab_size - 1))  # Smooth
+            true_dist.fill_(self.smoothing / (self.vocab_size - 2))  # Smooth
             
             # Set true class with confidence
             true_dist.scatter_(1, target.unsqueeze(1), self.confidence)
@@ -300,121 +302,125 @@ def greedy_decode(
 # ══════════════════════════════════════════════════════════════════════
 #   BLEU EVALUATION  
 # ══════════════════════════════════════════════════════════════════════
-def calculate_bleu_score(reference, hypothesis, max_n=4):
-    from collections import Counter
-    import math
-
-    ref_tokens = reference.split()
-    hyp_tokens = hypothesis.split()
-
-    if len(hyp_tokens) == 0 or len(ref_tokens) == 0:
-        return 0.0
-
-    weights = [0.25, 0.25, 0.25, 0.25]
-    log_score = 0.0
-
-    for n in range(1, max_n + 1):
-        if len(hyp_tokens) < n:
-            return 0.0  # can't compute this n-gram, BLEU is 0
-
-        ref_ngrams = Counter()
-        hyp_ngrams = Counter()
-
-        for i in range(len(ref_tokens) - n + 1):
-            ref_ngrams[tuple(ref_tokens[i:i+n])] += 1
-
-        for i in range(len(hyp_tokens) - n + 1):
-            hyp_ngrams[tuple(hyp_tokens[i:i+n])] += 1
-
-        matches = sum(min(count, ref_ngrams.get(ngram, 0))
-                      for ngram, count in hyp_ngrams.items())
-        total = sum(hyp_ngrams.values())
-
-        if matches == 0:
-            return 0.0  # geometric mean collapses to 0
-
-        log_score += weights[n-1] * math.log(matches / total)
-
-    # Brevity penalty
-    bp = min(1.0, math.exp(1 - len(ref_tokens) / len(hyp_tokens)))
-
-    return bp * math.exp(log_score) * 100
 
 
+def _corpus_bleu(hypotheses, references, max_order=4):
+    clipped_matches = [0] * max_order
+    total_candidates = [0] * max_order
+    ref_len = 0
+    hyp_len = 0
+
+    for hyp, refs in zip(hypotheses, references):
+        hyp_len += len(hyp)
+
+        # closest reference length
+        closest = min(
+            (len(r) for r in refs),
+            key=lambda rlen: (abs(rlen - len(hyp)), rlen),
+            default=0,
+        )
+        ref_len += closest
+
+        for n in range(1, max_order + 1):
+            hyp_ngrams = [
+                tuple(hyp[i:i+n])
+                for i in range(len(hyp) - n + 1)
+            ]
+            total_candidates[n-1] += len(hyp_ngrams)
+
+            hyp_counts = Counter(hyp_ngrams)
+
+            ref_max_counts = Counter()
+            for ref in refs:
+                ref_ngrams = [
+                    tuple(ref[i:i+n])
+                    for i in range(len(ref) - n + 1)
+                ]
+                for gram, count in Counter(ref_ngrams).items():
+                    ref_max_counts[gram] = max(
+                        ref_max_counts.get(gram, 0), count
+                    )
+
+            for gram, count in hyp_counts.items():
+                clipped_matches[n-1] += min(
+                    count, ref_max_counts.get(gram, 0)
+                )
+
+    precisions = []
+    for i in range(max_order):
+        if total_candidates[i] > 0:
+            p = clipped_matches[i] / total_candidates[i]
+            if p == 0:
+                p = 0.1 / total_candidates[i]  # smoothing
+        else:
+            p = 1e-9
+        precisions.append(p)
+
+    geo_mean = math.exp(
+        sum((1/max_order) * math.log(p) for p in precisions)
+    )
+
+    if hyp_len < ref_len:
+        bp = math.exp(1 - ref_len / hyp_len) if hyp_len > 0 else 0
+    else:
+        bp = 1.0
+
+    return bp * geo_mean * 100
 
 def evaluate_bleu(
-    model: Transformer,
-    test_dataloader: DataLoader,
+    model,
+    test_dataloader,
     tgt_vocab,
-    device: str = "cpu",
-    max_len: int = 100,
-) -> float:
-    """
-    Evaluate translation quality with corpus-level BLEU score.
-
-    Args:
-        model           : Trained Transformer (in eval mode).
-        test_dataloader : DataLoader over the test split.
-                          Each batch yields (src, tgt) token-index tensors.
-        tgt_vocab       : Vocabulary object with idx_to_token mapping.
-                          Must support  tgt_vocab.itos[idx]  or
-                          tgt_vocab.lookup_token(idx).
-        device          : 'cpu' or 'cuda'.
-        max_len         : Max decode length per sentence.
-
-    Returns:
-        bleu_score : Corpus-level BLEU (float, range 0–100).
-
-    """
+    device="cpu",
+    max_len=100,
+):
     model.eval()
-    
-    total_bleu = 0
-    count = 0
-    
+
+    hypotheses = []
+    references = []
+
     with torch.no_grad():
-        for src, tgt in tqdm(test_dataloader, desc="Evaluating BLEU"):
+        for src, tgt in test_dataloader:
             src = src.to(device)
             tgt = tgt.to(device)
-            
-            for i in range(src.shape[0]):
+
+            for i in range(src.size(0)):
                 src_seq = src[i:i+1]
-                tgt_seq = tgt[i:i+1]
-                
-                # Create mask
+                tgt_seq = tgt[i]
+
                 src_mask = make_src_mask(src_seq, pad_idx=1).to(device)
-                
-                # Decode
+
                 ys = greedy_decode(
-                    model, src_seq, src_mask, max_len,
-                    start_symbol=2,  # <sos>
-                    end_symbol=3,    # <eos>
-                    device=device
+                    model,
+                    src_seq,
+                    src_mask,
+                    max_len,
+                    start_symbol=2
                 )
-                
-                # Convert to text
+
+                # Hypothesis
                 hyp_tokens = []
-                for idx in ys[0].cpu().numpy():
-                    if idx in tgt_vocab.itos:
-                        token = tgt_vocab.itos[idx]
-                        if token not in ['<sos>', '<eos>', '<pad>', '<unk>']:
-                            hyp_tokens.append(token)
-                hypothesis = ' '.join(hyp_tokens)
-                
+                for idx in ys.squeeze(0).tolist():
+                    token = tgt_vocab.itos[idx]
+                    if token == "<eos>":
+                        break
+                    if token not in ["<pad>", "<sos>", "<unk>"]:
+                        hyp_tokens.append(token)
+
+                # Reference
                 ref_tokens = []
-                for idx in tgt_seq[0].cpu().numpy():
-                    if idx in tgt_vocab.itos:
-                        token = tgt_vocab.itos[idx]
-                        if token not in ['<sos>', '<eos>', '<pad>', '<unk>']:
-                            ref_tokens.append(token)
-                reference = ' '.join(ref_tokens)
-                
-                # Calculate BLEU for this pair
-                bleu = calculate_bleu_score(reference, hypothesis)
-                total_bleu += bleu
-                count += 1
-    
-    corpus_bleu = total_bleu / max(count, 1)
-    return corpus_bleu
+                for idx in tgt_seq.tolist():
+                    token = tgt_vocab.itos[idx]
+                    if token == "<eos>":
+                        break
+                    if token not in ["<pad>", "<sos>", "<unk>"]:
+                        ref_tokens.append(token)
+
+                hypotheses.append(hyp_tokens)
+                references.append([ref_tokens])  # IMPORTANT: list of refs
+
+    return _corpus_bleu(hypotheses, references)
+
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -535,7 +541,7 @@ def run_training_experiment() -> None:
     # Configuration
     config = {
         'batch_size': 16,
-        'num_epochs': 40,
+        'num_epochs': 20,
         'd_model': 512,
         'N': 6,
         'num_heads': 8,
@@ -543,7 +549,6 @@ def run_training_experiment() -> None:
         'dropout': 0.1,
         'warmup_steps': 4000,
         'label_smoothing': 0.1,
-    
     }
     
     # Initialize W&B

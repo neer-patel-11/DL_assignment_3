@@ -221,7 +221,7 @@ class MultiHeadAttention(nn.Module):
         attn_output, attn_weights = scaled_dot_product_attention(Q, K, V, mask)
         
         # Apply dropout to attention weights
-        attn_output = self.dropout(attn_output)
+        # attn_output = self.dropout(attn_output)
         
         # Concatenate heads: [batch, num_heads, seq_q, d_k] -> [batch, seq_q, num_heads, d_k] -> [batch, seq_q, d_model]
         attn_output = attn_output.transpose(1, 2).contiguous()
@@ -551,14 +551,14 @@ class Transformer(nn.Module):
         self.tgt_vocab_size = len(self.tgt_vocab)
 
         # ========================================================= 
-  # https://drive.google.com/file/d/17I4cqA0uPBYPOUwUspBneZRMhJeARFtk/view?usp=sharing
+        # https://drive.google.com/file/d/1spQpAIAy4W2WRqy57i7B8QtmrA25RcFo/view?usp=sharing
         # =========================================================
 
         checkpoint_path = "best_checkpoint.pt"
 
         if not os.path.exists(checkpoint_path):
 
-            file_id = "17I4cqA0uPBYPOUwUspBneZRMhJeARFtk"
+            file_id = "1spQpAIAy4W2WRqy57i7B8QtmrA25RcFo"
 
             url = f"https://drive.google.com/uc?id={file_id}"
 
