@@ -566,7 +566,7 @@ class Transformer(nn.Module):
             checkpoint_path = "best_checkpoint.pt"
 
             if not os.path.exists(checkpoint_path):
-                file_id = "1QvU3xxTJr7WKPVeSbKESJcqdCTbkBw-s"
+                file_id = "1spQpAIAy4W2WRqy57i7B8QtmrA25RcFo"
                 url = f"https://drive.google.com/uc?id={file_id}"
                 gdown.download(url, checkpoint_path, quiet=False)
 
