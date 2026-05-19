@@ -1,4 +1,10 @@
+### Name :- Neer Patel 
+### Roll no  :- DA25M021
+
+
 # DA6401 - Assignment 3: Implementing the Transformer for Machine Translation
+
+## Wandb Report :- https://api.wandb.ai/links/da25m021-iitm-indi/ax08x5ol
 
 ## Overview
 
