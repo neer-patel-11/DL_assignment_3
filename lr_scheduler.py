@@ -1,6 +1,4 @@
-# ════════════════════════════════════════════════════════════════════
-# noam_lr_scheduler.py
-# ════════════════════════════════════════════════════════════════════
+
 import torch
 import torch.optim as optim
 from torch.optim.lr_scheduler import LRScheduler
@@ -50,13 +48,3 @@ def get_lr_history(d_model: int, warmup_steps: int, total_steps: int):
         scheduler.step()
     return history
 
-
-# Quick sanity plot
-# import matplotlib.pyplot as plt
-# lrs = get_lr_history(512, 4000, 20_000)
-# plt.figure(figsize=(9, 3))
-# plt.plot(lrs)
-# plt.axvline(4000, color='red', linestyle='--', label='warmup=4000')
-# plt.xlabel('Step'); plt.ylabel('LR'); plt.title('Noam LR Schedule (d_model=512)')
-# plt.legend(); plt.tight_layout(); plt.show()
-# print('noam_lr_scheduler.py ✅')

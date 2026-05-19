@@ -1,6 +1,4 @@
-# ════════════════════════════════════════════════════════════════════
-# train.py
-# ════════════════════════════════════════════════════════════════════
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,10 +7,6 @@ from typing import Optional
 from tqdm import tqdm
 import sacrebleu
 
-
-# ══════════════════════════════════════════════════════════════════
-# 1. LABEL SMOOTHING LOSS
-# ══════════════════════════════════════════════════════════════════
 
 class LabelSmoothingLoss(nn.Module):
     """
@@ -48,10 +42,6 @@ class LabelSmoothingLoss(nn.Module):
         loss = loss[non_pad].mean()
         return loss
 
-
-# ══════════════════════════════════════════════════════════════════
-# 2. TRAINING LOOP
-# ══════════════════════════════════════════════════════════════════
 
 def run_epoch(
     data_iter,
@@ -102,9 +92,6 @@ def run_epoch(
     return total_loss / max(total_tokens, 1)
 
 
-# ══════════════════════════════════════════════════════════════════
-# 3. GREEDY DECODE
-# ══════════════════════════════════════════════════════════════════
 
 def greedy_decode(
     model,
@@ -128,10 +115,6 @@ def greedy_decode(
                 break
     return ys
 
-
-# ══════════════════════════════════════════════════════════════════
-# 4. BLEU EVALUATION
-# ══════════════════════════════════════════════════════════════════
 
 def evaluate_bleu(
     model,
@@ -174,10 +157,6 @@ def evaluate_bleu(
     return result.score
 
 
-# ══════════════════════════════════════════════════════════════════
-# 5. CHECKPOINT UTILITIES
-# ══════════════════════════════════════════════════════════════════
-
 def save_checkpoint(model, optimizer, scheduler, epoch: int, path: str = 'checkpoint.pt'):
     torch.save({
         'epoch':                epoch,
@@ -194,7 +173,7 @@ def save_checkpoint(model, optimizer, scheduler, epoch: int, path: str = 'checkp
             'dropout':        model.encoder.layers[0].dropout.p,
         },
     }, path)
-    print(f'✅ Saved checkpoint → {path}')
+    print(f'Saved checkpoint → {path}')
 
 
 def load_checkpoint(path: str, model, optimizer=None, scheduler=None) -> int:
@@ -205,10 +184,6 @@ def load_checkpoint(path: str, model, optimizer=None, scheduler=None) -> int:
     print(f'Loaded checkpoint from {path} (epoch {ckpt["epoch"]})')
     return ckpt['epoch']
 
-
-# ══════════════════════════════════════════════════════════════════
-# 6. TRAINING EXPERIMENT ENTRY POINT
-# ══════════════════════════════════════════════════════════════════
 
 def run_training_experiment(
     num_epochs:   int   = 30,
@@ -236,12 +211,10 @@ def run_training_experiment(
             dropout=dropout, warmup_steps=warmup_steps, smoothing=smoothing,
             batch_size=batch_size, num_epochs=num_epochs))
 
-    # ── Data ──
     train_dl, val_dl, test_dl = get_dataloaders(batch_size)
     src_vocab = Multi30kDataset.src_vocab
     tgt_vocab = Multi30kDataset.tgt_vocab
 
-    # ── Model ──
     model = Transformer(
         src_vocab_size=len(src_vocab),
         tgt_vocab_size=len(tgt_vocab),
@@ -251,7 +224,6 @@ def run_training_experiment(
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f'Model parameters: {n_params:,}')
 
-    # ── Optimizer & Scheduler ──
     optimizer = torch.optim.Adam(model.parameters(), lr=1.0, betas=(0.9, 0.98), eps=1e-9)
     scheduler = NoamScheduler(optimizer, d_model=d_model, warmup_steps=warmup_steps)
     loss_fn   = LabelSmoothingLoss(len(tgt_vocab), pad_idx=PAD_IDX, smoothing=smoothing)
@@ -281,7 +253,6 @@ def run_training_experiment(
             save_checkpoint(model, optimizer, scheduler, epoch,
                             os.path.join(checkpoint_dir, f'checkpoint_epoch{epoch}.pt'))
 
-    # ── Final eval ──
     print('\nLoading best checkpoint for final BLEU evaluation...')
     load_checkpoint(best_ckpt, model)
     bleu = evaluate_bleu(model, test_dl, tgt_vocab, device=device)
@@ -294,5 +265,3 @@ def run_training_experiment(
 
     return model, bleu
 
-
-# print('train.py ✅')

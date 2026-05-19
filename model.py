@@ -1,16 +1,10 @@
-# ════════════════════════════════════════════════════════════════════
-# model.py  — Full Transformer + infer()
-# ════════════════════════════════════════════════════════════════════
+
 import math, copy, os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Optional, Tuple
 
-
-# ══════════════════════════════════════════════════════════════════
-# 1. SCALED DOT-PRODUCT ATTENTION
-# ══════════════════════════════════════════════════════════════════
 
 def scaled_dot_product_attention(
     Q: torch.Tensor,
@@ -37,9 +31,6 @@ def scaled_dot_product_attention(
     return output, attn_w
 
 
-# ══════════════════════════════════════════════════════════════════
-# 2. MASK HELPERS
-# ══════════════════════════════════════════════════════════════════
 
 def make_src_mask(src: torch.Tensor, pad_idx: int = 1) -> torch.Tensor:
     """[batch, 1, 1, src_len]  True where PAD"""
@@ -58,9 +49,6 @@ def make_tgt_mask(tgt: torch.Tensor, pad_idx: int = 1) -> torch.Tensor:
     return tgt_mask
 
 
-# ══════════════════════════════════════════════════════════════════
-# 3. MULTI-HEAD ATTENTION
-# ══════════════════════════════════════════════════════════════════
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model: int, num_heads: int, dropout: float = 0.1):
@@ -99,9 +87,6 @@ class MultiHeadAttention(nn.Module):
         return self.W_o(out)
 
 
-# ══════════════════════════════════════════════════════════════════
-# 4. POSITIONAL ENCODING
-# ══════════════════════════════════════════════════════════════════
 
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
@@ -123,9 +108,6 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
-# ══════════════════════════════════════════════════════════════════
-# 5. FEED-FORWARD NETWORK
-# ══════════════════════════════════════════════════════════════════
 
 class PositionwiseFeedForward(nn.Module):
     def __init__(self, d_model: int, d_ff: int, dropout: float = 0.1):
@@ -138,9 +120,6 @@ class PositionwiseFeedForward(nn.Module):
         return self.linear2(self.dropout(F.relu(self.linear1(x))))
 
 
-# ══════════════════════════════════════════════════════════════════
-# 6. ENCODER LAYER
-# ══════════════════════════════════════════════════════════════════
 
 class EncoderLayer(nn.Module):
     """Pre-LayerNorm variant (more stable training)."""
@@ -162,9 +141,6 @@ class EncoderLayer(nn.Module):
         return x
 
 
-# ══════════════════════════════════════════════════════════════════
-# 7. DECODER LAYER
-# ══════════════════════════════════════════════════════════════════
 
 class DecoderLayer(nn.Module):
     def __init__(self, d_model: int, num_heads: int, d_ff: int, dropout: float = 0.1):
@@ -193,10 +169,6 @@ class DecoderLayer(nn.Module):
         return x
 
 
-# ══════════════════════════════════════════════════════════════════
-# 8. ENCODER & DECODER STACKS
-# ══════════════════════════════════════════════════════════════════
-
 class Encoder(nn.Module):
     def __init__(self, layer: EncoderLayer, N: int):
         super().__init__()
@@ -223,10 +195,6 @@ class Decoder(nn.Module):
             x = layer(x, memory, src_mask, tgt_mask)
         return self.norm(x)
 
-
-# ══════════════════════════════════════════════════════════════════
-# 9. FULL TRANSFORMER
-# ══════════════════════════════════════════════════════════════════
 
 class Transformer(nn.Module):
     """
@@ -290,7 +258,6 @@ class Transformer(nn.Module):
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
 
-    # ── Autograder self-contained mode ──────────────────────────────
     def _load_self_contained(
         self, d_model, N, num_heads, d_ff, dropout, pad_idx,
         checkpoint_path, gdrive_id
@@ -363,8 +330,6 @@ class Transformer(nn.Module):
             self.load_state_dict(ckpt.get('model_state_dict', ckpt))
             print('Checkpoint loaded successfully.')
 
-    # ── AUTOGRADER HOOKS ────────────────────────────────────────────
-
     def encode(
         self,
         src:      torch.Tensor,
@@ -394,7 +359,6 @@ class Transformer(nn.Module):
         memory = self.encode(src, src_mask)
         return self.decode(memory, src_mask, tgt, tgt_mask)
 
-    # ── INFER (autograder contract) ──────────────────────────────────
 
     def infer(self, src_sentence: str, max_len: int = 100) -> str:
         """
@@ -404,7 +368,6 @@ class Transformer(nn.Module):
         self.eval()
         device = next(self.parameters()).device
 
-        # ── Choose vocab depending on mode ──
         if self._autograder_mode:
             src_stoi = self._src_stoi
             tgt_itos = self._tgt_itos
@@ -440,7 +403,6 @@ class Transformer(nn.Module):
                 if next_tok.item() == eos:
                     break
 
-        # ── Detokenize ──
         token_ids = ys[0].tolist()
         words     = []
         for i in token_ids:
@@ -449,5 +411,3 @@ class Transformer(nn.Module):
             words.append(tgt_itos.get(i, '<unk>'))
         return ' '.join(words)
 
-
-# print('model.py ✅')

@@ -1,4 +1,4 @@
-# 🔥 Backup original function ONCE
+#  Backup original function ONCE
 original_attn = scaled_dot_product_attention
 
 
@@ -48,6 +48,6 @@ def run_scaling(use_scaling=True):
     wandb.finish()
 
 
-# ✅ Run both experiments
+# Run both experiments
 run_scaling(True)
 run_scaling(False)

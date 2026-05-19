@@ -1,6 +1,4 @@
-# ════════════════════════════════════════════════════════════════════
-# dataset.py
-# ════════════════════════════════════════════════════════════════════
+
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
@@ -10,7 +8,6 @@ from collections import Counter
 from typing import List, Tuple, Dict
 
 
-# ── Special token indices (kept as module-level constants) ──────────
 UNK_IDX, PAD_IDX, SOS_IDX, EOS_IDX = 0, 1, 2, 3
 SPECIAL_TOKENS = ['<unk>', '<pad>', '<sos>', '<eos>']
 
@@ -71,14 +68,12 @@ class Multi30kDataset(Dataset):
         # Tokenise & numericalize this split
         self.data = self._process()
 
-    # ── tokenisers ──────────────────────────────────────────────────
     def tokenize_de(self, text: str) -> List[str]:
         return [tok.text.lower() for tok in self.de_nlp.tokenizer(text)]
 
     def tokenize_en(self, text: str) -> List[str]:
         return [tok.text.lower() for tok in self.en_nlp.tokenizer(text)]
 
-    # ── vocab building ───────────────────────────────────────────────
     def _build_vocabs(self, raw_dataset):
         train_split = raw_dataset['train']
         de_tokens = [self.tokenize_de(ex['de']) for ex in train_split]
@@ -93,7 +88,6 @@ class Multi30kDataset(Dataset):
         Multi30kDataset.tgt_vocab = tgt_vocab
         print(f'Built vocabularies:\n  Source vocab size: {len(src_vocab)}\n  Target vocab size: {len(tgt_vocab)}')
 
-    # ── numericalize ─────────────────────────────────────────────────
     def _process(self):
         data = []
         for ex in self.raw_data:
@@ -130,5 +124,3 @@ def get_dataloaders(batch_size: int = 128) -> Tuple[DataLoader, DataLoader, Data
     test_dl  = DataLoader(test_ds,  batch_size=1,          shuffle=False, collate_fn=collate_fn, num_workers=2)
     return train_dl, val_dl, test_dl
 
-
-# print('dataset.py ✅')
