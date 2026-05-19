@@ -85,12 +85,12 @@ class Multi30kDataset:
 
     def tokenize_src(self, text: str) -> List[str]:
         """Tokenize German text."""
-        return [token.text for token in self.src_tokenizer.tokenizer(text)]
-    
+        return [token.text.lower() for token in self.src_tokenizer.tokenizer(text)]
+
     def tokenize_tgt(self, text: str) -> List[str]:
         """Tokenize English text."""
-        return [token.text for token in self.tgt_tokenizer.tokenizer(text)]
-
+        return [token.text.lower() for token in self.tgt_tokenizer.tokenizer(text)]
+    
     def build_vocab(self):
         """
         Builds the vocabulary mapping for src (de) and tgt (en), including:

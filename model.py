@@ -138,7 +138,7 @@ def make_tgt_mask(
     
     # Combine padding and causal mask
     # Expand padding mask to [batch, tgt_len, tgt_len] by broadcasting
-    pad_mask_expanded = pad_mask.unsqueeze(2)  # [batch, tgt_len, 1]
+    pad_mask_expanded = pad_mask.unsqueeze(1)  # [batch, tgt_len, 1]
     
     # Combine: True if it's padding OR it's a future position
     combined_mask = pad_mask_expanded | causal_mask.unsqueeze(0)  # [batch, tgt_len, tgt_len]
@@ -514,16 +514,16 @@ class Transformer(nn.Module):
         d_ff           (int)  : FFN inner dimensionality (default 2048).
         dropout        (float): Dropout probability (default 0.1).
     """
-
     def __init__(self,
-                src_vocab_size=None,
-                tgt_vocab_size=None,
-                d_model=512,
-                N=6,
-                num_heads=8,
-                d_ff=2048,
-                dropout=0.1,
-            ):
+            src_vocab_size=None,
+            tgt_vocab_size=None,
+            d_model=512,
+            N=6,
+            num_heads=8,
+            d_ff=2048,
+            dropout=0.1,
+            load_checkpoint=True,   # <-- ADD THIS
+        ):
 
         super().__init__()
 
@@ -531,134 +531,55 @@ class Transformer(nn.Module):
         import gdown
         from dataset import Multi30kDataset
 
-        # =========================================================
         # TOKENIZERS
-        # =========================================================
-
         self.src_tokenizer = spacy.blank("de")
         self.tgt_tokenizer = spacy.blank("en")
 
-        # =========================================================
         # VOCAB
-        # =========================================================
-
         train_dataset = Multi30kDataset(split="train")
-
         self.src_vocab = train_dataset.src_vocab
         self.tgt_vocab = train_dataset.tgt_vocab
-
         self.src_vocab_size = len(self.src_vocab)
         self.tgt_vocab_size = len(self.tgt_vocab)
 
-        # ========================================================= 
-        # https://drive.google.com/file/d/1spQpAIAy4W2WRqy57i7B8QtmrA25RcFo/view?usp=sharing
-        # =========================================================
-
-        checkpoint_path = "best_checkpoint.pt"
-
-        if not os.path.exists(checkpoint_path):
-
-            file_id = "1spQpAIAy4W2WRqy57i7B8QtmrA25RcFo"
-
-            url = f"https://drive.google.com/uc?id={file_id}"
-
-            gdown.download(
-                url,
-                checkpoint_path,
-                quiet=False
-            )
-
-        # =========================================================
-        # LOAD CHECKPOINT FIRST
-        # =========================================================
-
-        checkpoint = torch.load(
-            checkpoint_path,
-            map_location="cpu"
-        )
-
-        # =========================================================
-        # READ CONFIG FROM CHECKPOINT
-        # =========================================================
-
-        if "model_config" in checkpoint:
-
-            config = checkpoint["model_config"]
-
-            d_model = config["d_model"]
-            N = config["N"]
-            num_heads = config["num_heads"]
-            d_ff = config["d_ff"]
-            dropout = config["dropout"]
-
-        # =========================================================
-        # SAVE CONFIG
-        # =========================================================
-
+        # BUILD MODEL FIRST (always)
         self.d_model = d_model
         self.N = N
         self.num_heads = num_heads
         self.d_ff = d_ff
         self.dropout_rate = dropout
 
-        # =========================================================
-        # BUILD MODEL
-        # =========================================================
+        self.src_embed = nn.Embedding(self.src_vocab_size, d_model)
+        self.tgt_embed = nn.Embedding(self.tgt_vocab_size, d_model)
+        self.pos_encoding = PositionalEncoding(d_model, dropout)
 
-        self.src_embed = nn.Embedding(
-            self.src_vocab_size,
-            d_model
-        )
+        encoder_layer = EncoderLayer(d_model, num_heads, d_ff, dropout)
+        self.encoder = Encoder(encoder_layer, N)
 
-        self.tgt_embed = nn.Embedding(
-            self.tgt_vocab_size,
-            d_model
-        )
+        decoder_layer = DecoderLayer(d_model, num_heads, d_ff, dropout)
+        self.decoder = Decoder(decoder_layer, N)
 
-        self.pos_encoding = PositionalEncoding(
-            d_model,
-            dropout
-        )
+        self.fc_out = nn.Linear(d_model, self.tgt_vocab_size)
 
-        encoder_layer = EncoderLayer(
-            d_model,
-            num_heads,
-            d_ff,
-            dropout
-        )
+        # LOAD CHECKPOINT (only when load_checkpoint=True) https://drive.google.com/file/d/1QvU3xxTJr7WKPVeSbKESJcqdCTbkBw-s/view?usp=sharing
+        if load_checkpoint:
+            checkpoint_path = "best_checkpoint.pt"
 
-        self.encoder = Encoder(
-            encoder_layer,
-            N
-        )
+            if not os.path.exists(checkpoint_path):
+                file_id = "1QvU3xxTJr7WKPVeSbKESJcqdCTbkBw-s"
+                url = f"https://drive.google.com/uc?id={file_id}"
+                gdown.download(url, checkpoint_path, quiet=False)
 
-        decoder_layer = DecoderLayer(
-            d_model,
-            num_heads,
-            d_ff,
-            dropout
-        )
+            checkpoint = torch.load(checkpoint_path, map_location="cpu")
 
-        self.decoder = Decoder(
-            decoder_layer,
-            N
-        )
+            if "model_config" in checkpoint:
+                config = checkpoint["model_config"]
+                # Note: if config differs from defaults, you may need to rebuild
+                # For inference this is fine; for training start fresh
 
-        self.fc_out = nn.Linear(
-            d_model,
-            self.tgt_vocab_size
-        )
-
-        # =========================================================
-        # LOAD WEIGHTS
-        # =========================================================
-
-        self.load_state_dict(
-            checkpoint["model_state_dict"]
-        )
-
-        print("Checkpoint loaded successfully.")
-    
+            self.load_state_dict(checkpoint["model_state_dict"])
+            print("Checkpoint loaded successfully.")
+            
     def _load_vocab_and_tokenizers(self):
         """Load vocabulary and spacy tokenizers."""
         try:
@@ -776,7 +697,7 @@ class Transformer(nn.Module):
             # TOKENIZE
             # ================================
             tokens = [
-                token.text.lower()
+                token.text
                 for token in self.src_tokenizer.tokenizer(german_sentence)
             ]
 

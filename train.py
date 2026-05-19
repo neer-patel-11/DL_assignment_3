@@ -226,9 +226,9 @@ def run_epoch(
             scheduler.step()
         
         # Accumulate loss
-        num_tokens = (tgt_output != 1).sum().item()  # Count non-padding tokens
-        total_loss += loss.item() * num_tokens
-        total_tokens += num_tokens
+        # num_tokens = (tgt_output != 1).sum().item()  # Count non-padding tokens
+        total_loss += loss.item() 
+        total_tokens += 1
         
         pbar.set_description(
             f"Epoch {epoch_num} | {'Train' if is_train else 'Val'} | "
@@ -621,6 +621,7 @@ def run_training_experiment() -> None:
         num_heads=config['num_heads'],
         d_ff=config['d_ff'],
         dropout=config['dropout'],
+        load_checkpoint=False,
         
     ).to(device)
     
