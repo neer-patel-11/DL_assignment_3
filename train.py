@@ -390,21 +390,22 @@ def evaluate_bleu(
 
                 src_mask = make_src_mask(src_seq, pad_idx=1).to(device)
 
+
                 ys = greedy_decode(
                     model,
                     src_seq,
                     src_mask,
                     max_len,
-                    start_symbol=2
+                    start_symbol=2,
+                    end_symbol=3
                 )
-
                 # Hypothesis
                 hyp_tokens = []
                 for idx in ys.squeeze(0).tolist():
                     token = tgt_vocab.itos[idx]
                     if token == "<eos>":
                         break
-                    if token not in ["<pad>", "<sos>", "<unk>"]:
+                    if token not in ["<pad>", "<sos>"]:
                         hyp_tokens.append(token)
 
                 # Reference
@@ -413,7 +414,7 @@ def evaluate_bleu(
                     token = tgt_vocab.itos[idx]
                     if token == "<eos>":
                         break
-                    if token not in ["<pad>", "<sos>", "<unk>"]:
+                    if token not in ["<pad>", "<sos>"]:
                         ref_tokens.append(token)
 
                 hypotheses.append(hyp_tokens)
