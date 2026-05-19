@@ -562,11 +562,12 @@ class Transformer(nn.Module):
         self.fc_out = nn.Linear(d_model, self.tgt_vocab_size)
 
         # LOAD CHECKPOINT (only when load_checkpoint=True) https://drive.google.com/file/d/1QvU3xxTJr7WKPVeSbKESJcqdCTbkBw-s/view?usp=sharing
+        # https://drive.google.com/file/d/1QvU3xxTJr7WKPVeSbKESJcqdCTbkBw-s/view?usp=sharing
         if load_checkpoint:
             checkpoint_path = "best_checkpoint.pt"
 
             if not os.path.exists(checkpoint_path):
-                file_id = "1spQpAIAy4W2WRqy57i7B8QtmrA25RcFo"
+                file_id = "1QvU3xxTJr7WKPVeSbKESJcqdCTbkBw-s"
                 url = f"https://drive.google.com/uc?id={file_id}"
                 gdown.download(url, checkpoint_path, quiet=False)
 
@@ -574,9 +575,26 @@ class Transformer(nn.Module):
 
             if "model_config" in checkpoint:
                 config = checkpoint["model_config"]
+                d_model   = config["d_model"]
+                N         = config["N"]
+                num_heads = config["num_heads"]
+                d_ff      = config["d_ff"]
+                dropout   = config["dropout"]
                 # Note: if config differs from defaults, you may need to rebuild
                 # For inference this is fine; for training start fresh
-
+            else:
+                # No model_config saved — infer architecture from weight shapes
+                state = checkpoint["model_state_dict"]
+                # d_model: from embedding weight
+                d_model   = state["src_embed.weight"].shape[1]
+                # d_ff: from FFN linear1 weight (shape is [d_ff, d_model])
+                d_ff      = state["encoder.layers.0.feed_forward.linear1.weight"].shape[0]
+                # N: count encoder layers
+                N         = sum(1 for k in state if k.startswith("encoder.layers.") and k.endswith(".self_attn.W_q.weight"))
+                # num_heads: infer from d_model and d_k stored in W_q shape
+                # W_q shape is [d_model, d_model], so just use 8 (standard) or compute from norm weights
+                num_heads = 8
+                dropout   = 0.1
             self.load_state_dict(checkpoint["model_state_dict"])
             print("Checkpoint loaded successfully.")
             
